@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Démo — Assistant de réservation</title>
+<style>
+  :root{
+    --ink:#1c1916; --paper:#faf7f2; --cream:#f1ece3;
+    --accent:#8a5a2b; --accent-dark:#6e4520;
+    --green:#2e7d4f; --green-bg:#e8f5ed;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Georgia,'Times New Roman',serif;background:var(--paper);color:var(--ink);min-height:100vh}
+
+  /* ---- Page vitrine (la partie "site du resto") ---- */
+  header{padding:64px 24px 40px;text-align:center;background:var(--cream)}
+  header .eyebrow{font-family:Arial,sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+  header h1{font-size:clamp(32px,6vw,52px);font-weight:normal;margin:10px 0 6px}
+  header p{font-style:italic;color:#6b6258}
+  .infos{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;padding:28px 24px;font-family:Arial,sans-serif;font-size:14px;color:#4a443d}
+  .infos span{background:#fff;border:1px solid #e3dcd0;border-radius:999px;padding:8px 16px}
+  .hint{max-width:560px;margin:8px auto 80px;text-align:center;font-family:Arial,sans-serif;font-size:14px;color:#8a8273;padding:0 24px}
+
+  /* ---- Bouton flottant ---- */
+  #chat-toggle{position:fixed;bottom:22px;right:22px;width:60px;height:60px;border-radius:50%;
+    background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:26px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);transition:transform .15s;z-index:50}
+  #chat-toggle:hover{transform:scale(1.06)}
+
+  /* ---- Fenêtre de chat ---- */
+  #chat-window{position:fixed;bottom:96px;right:22px;width:min(380px,calc(100vw - 32px));
+    height:min(560px,calc(100vh - 130px));background:#fff;border-radius:var(--radius);
+    box-shadow:0 12px 40px rgba(0,0,0,.28);display:none;flex-direction:column;overflow:hidden;z-index:50;
+    font-family:Arial,sans-serif}
+  #chat-window.open{display:flex}
+  #chat-header{background:var(--ink);color:#fff;padding:14px 18px}
+  #chat-header strong{font-size:15px;display:block}
+  #chat-header span{font-size:12px;color:#b9b2a8}
+  #chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfaf8}
+  .msg{max-width:84%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+  .msg.bot{background:var(--cream);border-bottom-left-radius:4px;align-self:flex-start}
+  .msg.user{background:var(--accent);color:#fff;border-bottom-right-radius:4px;align-self:flex-end}
+  .msg.typing{color:#8a8273;font-style:italic}
+
+  /* ---- Carte de confirmation ---- */
+  .resa-card{align-self:stretch;background:var(--green-bg);border:1px solid #bfe0cc;border-radius:12px;padding:14px 16px;font-size:13.5px}
+  .resa-card h4{color:var(--green);font-size:14px;margin-bottom:8px}
+  .resa-card table{width:100%;border-collapse:collapse}
+  .resa-card td{padding:3px 0;vertical-align:top}
+  .resa-card td:first-child{color:#5a7a66;width:38%}
+  .resa-card .ok{margin-top:8px;font-size:12px;color:var(--green)}
+
+  #chat-input-row{display:flex;gap:8px;padding:12px;border-top:1px solid #eee;background:#fff}
+  #chat-input{flex:1;border:1px solid #ddd;border-radius:999px;padding:10px 16px;font-size:14px;outline:none}
+  #chat-input:focus{border-color:var(--accent)}
+  #chat-send{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:0 18px;cursor:pointer;font-size:14px}
+  #chat-send:hover{background:var(--accent-dark)}
+  #chat-send:disabled{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     ⚙️ CONFIGURATION — c'est LE seul bloc à modifier par client.
+     Change ces valeurs pour créer une démo personnalisée
+     (nom du resto, horaires, menu, etc.). Rien d'autre à toucher.
+     ============================================================ -->
+<script>
+const CONFIG = {
+  nom: "La Table du Lac",
+  type: "Restaurant — cuisine du marché",
+  ville: "Genève",
+  telephone: "+41 22 000 00 00",
+  adresse: "Quai du Mont-Blanc 12, 1201 Genève",
+  horaires: "Mar–Sam : 11h30–14h00 et 18h30–22h30. Fermé dimanche et lundi.",
+  menu: `Entrées : féra du lac fumée (24 CHF), velouté de courge (18 CHF).
+Plats : filets de perche meunière (42 CHF), entrecôte café de Paris (48 CHF), risotto aux bolets (36 CHF).
+Desserts : tarte aux pruneaux (14 CHF), double crème de Gruyère et meringues (15 CHF).
+Menu du jour à midi : 28 CHF (entrée + plat).`,
+  specifications: "Terrasse en été. Chiens acceptés en terrasse. Options végétariennes disponibles. Groupes jusqu'à 20 personnes sur demande."
+};
+</script>
+
+<header>
+  <div class="eyebrow">Démo · Assistant IA</div>
+  <h1 id="resto-nom"></h1>
+  <p id="resto-type"></p>
+</header>
+<div class="infos">
+  <span id="resto-adresse"></span>
+  <span id="resto-horaires-court"></span>
+  <span id="resto-tel"></span>
+</div>
+<p class="hint">👋 Ceci est une page de démonstration. Cliquez sur la bulle en bas à droite :
+l'assistant répond aux questions des clients et prend les réservations, 24h/24.</p>
+
+<button id="chat-toggle" aria-label="Ouvrir le chat">💬</button>
+
+<div id="chat-window" role="dialog" aria-label="Assistant de réservation">
+  <div id="chat-header">
+    <strong id="chat-titre"></strong>
+    <span>Assistant · répond en quelques secondes</span>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <input id="chat-input" type="text" placeholder="Écrivez votre message…" autocomplete="off">
+    <button id="chat-send">Envoyer</button>
+  </div>
+</div>
+
+<script>
+/* ---------- Remplissage de la page depuis CONFIG ---------- */
+document.getElementById('resto-nom').textContent = CONFIG.nom;
+document.getElementById('resto-type').textContent = CONFIG.type;
+document.getElementById('resto-adresse').textContent = "📍 " + CONFIG.adresse;
+document.getElementById('resto-horaires-court').textContent = "🕐 " + CONFIG.horaires.split('.')[0];
+document.getElementById('resto-tel').textContent = "📞 " + CONFIG.telephone;
+document.getElementById('chat-titre').textContent = CONFIG.nom;
+document.title = CONFIG.nom + " — Assistant de réservation";
+
+/* ---------- Logique du chat ---------- */
+const win = document.getElementById('chat-window');
+const messagesEl = document.getElementById('chat-messages');
+const input = document.getElementById('chat-input');
+const sendBtn = document.getElementById('chat-send');
+let history = []; // [{role, content}]
+let opened = false;
+
+document.getElementById('chat-toggle').addEventListener('click', () => {
+  win.classList.toggle('open');
+  if (win.classList.contains('open') && !opened) {
+    opened = true;
+    addMsg('bot', `Bonjour ! Bienvenue chez ${CONFIG.nom} 😊\nJe peux répondre à vos questions (menu, horaires…) ou prendre votre réservation. Que puis-je faire pour vous ?`);
+  }
+  if (win.classList.contains('open')) input.focus();
+});
+
+function addMsg(role, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  div.textContent = text;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addResaCard(r){
+  const card = document.createElement('div');
+  card.className = 'resa-card';
+  card.innerHTML = `
+    <h4>✅ Réservation confirmée</h4>
+    <table>
+      <tr><td>Nom</td><td>${esc(r.nom)}</td></tr>
+      <tr><td>Date</td><td>${esc(r.date)}</td></tr>
+      <tr><td>Heure</td><td>${esc(r.heure)}</td></tr>
+      <tr><td>Personnes</td><td>${esc(r.personnes)}</td></tr>
+      <tr><td>Téléphone</td><td>${esc(r.telephone)}</td></tr>
+      ${r.remarques ? `<tr><td>Remarques</td><td>${esc(r.remarques)}</td></tr>` : ''}
+    </table>
+    <div class="ok">Le restaurant a bien reçu votre demande.</div>`;
+  messagesEl.appendChild(card);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function esc(s){ const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+
+async function send(){
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMsg('user', text);
+  history.push({role:'user', content:text});
+  sendBtn.disabled = true;
+  const typing = addMsg('bot', '…');
+  typing.classList.add('typing');
+
+  try {
+    const res = await fetch('/.netlify/functions/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ messages: history.slice(-12), config: CONFIG })
+    });
+    const data = await res.json();
+    typing.remove();
+
+    if (data.error) { addMsg('bot', "Désolé, un souci technique. Réessayez dans un instant, ou appelez-nous au " + CONFIG.telephone + "."); sendBtn.disabled = false; return; }
+
+    let reply = data.reply || '';
+
+    /* Détection du marqueur de réservation ===RESERVATION=== {json} */
+    const m = reply.match(/===RESERVATION===\s*({[\s\S]*?})/);
+    if (m) {
+      reply = reply.replace(/===RESERVATION===[\s\S]*$/, '').trim();
+      if (reply) addMsg('bot', reply);
+      try {
+        const resa = JSON.parse(m[1]);
+        addResaCard(resa);
+        history.push({role:'assistant', content:(reply ? reply + ' ' : '') + '[Réservation enregistrée]'});
+        /* Envoi au resto (n8n / email) — silencieux pour le client */
+        fetch('/.netlify/functions/reservation', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ ...resa, restaurant: CONFIG.nom })
+        }).catch(()=>{});
+      } catch(e) {
+        addMsg('bot', "Votre réservation est notée ! Le restaurant vous confirmera par téléphone.");
+      }
+    } else {
+      addMsg('bot', reply);
+      history.push({role:'assistant', content:reply});
+    }
+  } catch(e) {
+    typing.remove();
+    addMsg('bot', "Désolé, je n'arrive pas à me connecter. Appelez-nous au " + CONFIG.telephone + ".");
+  }
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+</script>
+</body>
+</html>
